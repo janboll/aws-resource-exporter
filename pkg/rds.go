@@ -295,6 +295,8 @@ type RDSExporter struct {
 
 	logger   log.Logger
 	cache    MetricsCache
+	cacheTTL time.Duration
+	tagCache awsclient.TagCache
 	interval time.Duration
 	timeout  time.Duration
 }
@@ -318,6 +320,7 @@ func NewRDSExporter(sessions []*session.Session, logger log.Logger, config RDSCo
 	} else {
 		level.Info(logger).Log("msg", fmt.Sprintf("Using Env value for logs metrics TTL: %d", *logMetricsTTL))
 	}
+	tagCache := awsclient.GetTagCache()
 	var rdses []awsclient.Client
 	for _, session := range sessions {
 		rdses = append(rdses, awsclient.NewClientFromSession(session))
@@ -330,6 +333,8 @@ func NewRDSExporter(sessions []*session.Session, logger log.Logger, config RDSCo
 		logsMetricsTTL: *logMetricsTTL,
 		logger:         logger,
 		cache:          *NewMetricsCache(*config.CacheTTL),
+		cacheTTL:       *config.CacheTTL,
+		tagCache:       *tagCache,
 		interval:       *config.Interval,
 		timeout:        *config.Timeout,
 	}
@@ -522,6 +527,9 @@ func (e *RDSExporter) CollectLoop() {
 		for i, _ := range e.sessions {
 
 			instances, err := e.svcs[i].DescribeDBInstancesAll(ctx)
+			for _, instance := range instances {
+				e.tagCache.AddRdsTags(*instance.DBInstanceArn, instance.TagList, &e.cacheTTL)
+			}
 			if err != nil {
 				level.Error(e.logger).Log("msg", "Call to DescribeDBInstances failed", "region", *e.sessions[i].Config.Region, "err", err)
 			}

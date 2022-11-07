@@ -110,6 +110,10 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 		collectors = append(collectors, r53Exporter)
 		go r53Exporter.CollectLoop()
 	}
+	level.Info(logger).Log("msg", "Starting tag collector")
+	tageExporter := pkg.NewTagExporter(logger, config.EC2Config, awsAccountId)
+	// collectors = append(collectors, tageExporter)
+	go tageExporter.CollectLoop()
 
 	return collectors, nil
 }
